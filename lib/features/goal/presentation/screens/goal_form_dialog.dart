@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:ledgerly/core/extensions/string_extension.dart';
+import 'package:ledgerly/core/utils/logger.dart';
+import 'package:ledgerly/features/goal/data/model/goal_model.dart';
+class GoalFormDialog extends HookConsumerWidget {
+  final GoalModel? goal;
+  const GoalFormDialog({super.key, this.goal});
+
+  @override
+  Widget build(BuildContext context, ref) {
+    final wallet = ref.read(activeWalletProvider);
+    final defaultCurrency = wallet.value?.currencyByIsoCode(ref).symbol;
+    final dateRange = ref.watch(datePickerProvider);
+    final titleController = useTextEditingController();
+    final noteController = useTextEditingController();
+    final targetAmountController = useTextEditingController();
+
+    bool isEditing = false;
+
+    useEffect(() {
+      isEditing = goal != null;
+      if (isEditing) {
+        titleController.text = goal!.title;
+        noteController.text = goal!.description ?? '';
+        targetAmountController.text =
+            '$defaultCurrency ${goal!.targetAmount.toPriceFormat()}';
+      }
+
+      return null;
+    }, const []);
+
+    return CustomBottomSheet(
+      title: '${isEditing ? 'Edit' : 'New'} Goal',
+      child: Form(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: AppSpacing.spacing16,
+          children: [
+            CustomTextField(
+              context: context,
+              controller: titleController,
+              label: 'Title (max. 25)',
+              hint: 'Buy something',
+              isRequired: true,
+              prefixIcon: HugeIcons.strokeRoundedArrangeByLettersAZ,
+              textInputAction: TextInputAction.next,
+              keyboardType: TextInputType.name,
+              maxLength: 25,
+              customCounterText: '',
+            ),
+            GoalDateRangePicker(initialDate: dateRange),
+            CustomTextField(
+              context: context,
+              controller: noteController,
+              label: 'Write a note',
+              hint: 'Write here...',
+              prefixIcon: HugeIcons.strokeRoundedNote,
+              minLines: 1,
+              maxLines: 3,
+              maxLength: 250,
+            ),
+            /* CustomNumericField(
+              controller: targetAmountController,
+              label: 'Target amount',
+              hint: '1,500',
+              icon: HugeIcons.strokeRoundedCoins01,
+              isRequired: true,
+              appendCurrencySymbolToHint: true,
+            ), */
+            PrimaryButton(
+              label: 'Save',
+              state: ButtonState.active,
+              themeMode: context.themeMode,
+              onPressed: () {
+                final selectedDate = ref.watch(datePickerProvider);
+                Log.d(titleController.text, label: 'title');
+                Log.d(selectedDate, label: 'selected date');
+                Log.d(noteController.text, label: 'note');
+                Log.d(targetAmountController.text, label: 'target');
+
+                final newGoal = GoalModel(
+                  id: goal?.id,
+                  title: titleController.text.trim(),
+                  description: noteController.text.trim(),
+                  targetAmount: targetAmountController.text
+                      .takeNumericAsDouble(),
+                  createdAt: DateTime.now(),
+                  startDate: dateRange.first,
+                  endDate: dateRange.length > 1 && dateRange[1] != null
+                      ? dateRange[1]!
+                      : dateRange.first!,
+                );
+
+                Log.d(newGoal.toJson(), label: 'new goal');
+                // return;
+
+                GoalFormService().save(context, ref, goal: newGoal);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

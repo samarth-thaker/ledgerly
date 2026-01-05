@@ -1,0 +1,97 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:ledgerly/core/components/bottomsheets/alert_bottomsheet.dart';
+import 'package:ledgerly/core/components/bottomsheets/custom_bottom_sheet.dart';
+import 'package:ledgerly/core/constants/app_colors.dart';
+import 'package:ledgerly/core/constants/app_spacing.dart';
+import 'package:ledgerly/core/constants/app_text_styles.dart';
+import 'package:ledgerly/core/extensions/pop_up_extension.dart';
+import 'package:ledgerly/core/extensions/text_style_extensions.dart';
+import 'package:ledgerly/features/wallets/data/model/wallet_model.dart';
+import 'package:ledgerly/features/wallets/riverpod/wallet_provider.dart';
+class WalletSelectorBottomSheet extends ConsumerWidget {
+  const WalletSelectorBottomSheet({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allWalletsAsync = ref.watch(allWalletsStreamProvider);
+    final activeWalletAsync = ref.watch(activeWalletProvider);
+
+    return CustomBottomSheet(
+      title: 'Select Wallet',
+      child: allWalletsAsync.when(
+        data: (wallets) {
+          if (wallets.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.spacing16),
+                child: Text('No wallets available.'),
+              ),
+            );
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: AppSpacing.spacing16),
+            itemCount: wallets.length,
+            itemBuilder: (context, index) {
+              final wallet = wallets[index];
+              final bool isSelected =
+                  activeWalletAsync.asData?.value?.id == wallet.id;
+
+              return ListTile(
+                title: Text(
+                  wallet.name,
+                  style: AppTextStyles.body2.bold.copyWith(
+                    color: context.secondaryText,
+                  ),
+                ),
+                dense: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.spacing12),
+                  side: BorderSide(color: context.secondaryBorderLighter),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.spacing16,
+                ),
+                subtitle: Text(
+                  '${wallet.currencyByIsoCode(ref).symbol} ${wallet.balance.toPriceFormat()}',
+                  style: AppTextStyles.body3,
+                ),
+                trailing: HugeIcon(
+                  icon: isSelected
+                      ? HugeIcons.strokeRoundedCheckmarkCircle01
+                      : HugeIcons.strokeRoundedCircle,
+                  color: isSelected ? Colors.green : Colors.grey,
+                ),
+                onTap: () {
+                  if (isSelected) return;
+                  context.openBottomSheet(
+                    child: AlertBottomSheet(
+                      title: 'Switch Wallet',
+                      content: Text(
+                        'Are you sure you want to switch to ${wallet.name}?',
+                        style: AppTextStyles.body2,
+                      ),
+                      onConfirm: () {
+                        ref
+                            .read(activeWalletProvider.notifier)
+                            .setActiveWallet(wallet);
+                        context.pop(); // Close the dialog
+                        context.pop(); // Close the bottom sheet
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+            separatorBuilder: (context, index) => const Divider(height: 1),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('Error: $error')),
+      ),
+    );
+  }
+}
